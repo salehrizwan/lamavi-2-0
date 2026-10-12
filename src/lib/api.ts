@@ -159,9 +159,9 @@ export async function apiRequest<T = any>(
       headers
     });
 
-    // If server returned 404 (common on Vercel static deployments without serverless rewrites), fallback seamlessly!
-    if (response.status === 404) {
-      console.warn(`[LAMAVI] /api returned 404 on ${endpoint}. Seamlessly switching to local offline storage adapter.`);
+    // If server returned 404 or 405 (Method Not Allowed when a static host routes POST to index.html), fallback seamlessly!
+    if (response.status === 404 || response.status === 405) {
+      console.warn(`[LAMAVI] /api returned ${response.status} on ${endpoint}. Seamlessly switching to local offline storage adapter.`);
       return handleClientFallback(endpoint, options) as T;
     }
 
@@ -182,9 +182,9 @@ export async function apiRequest<T = any>(
 
     return data as T;
   } catch (err: any) {
-    // If network connection failed or server not found, fallback to client offline database
-    if (err.message && (err.message.includes('404') || err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
-      console.warn(`[LAMAVI] Network unavailable. Handling request via local storage database: ${endpoint}`);
+    // If network connection failed or server returned 404/405, fallback to client offline database
+    if (err.message && (err.message.includes('404') || err.message.includes('405') || err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
+      console.warn(`[LAMAVI] Network unavailable (${err.message}). Handling request via local storage database: ${endpoint}`);
       return handleClientFallback(endpoint, options) as T;
     }
     throw err;

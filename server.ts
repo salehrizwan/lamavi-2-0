@@ -16,8 +16,9 @@ import type {
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const isProd = process.env.NODE_ENV === 'production';
 
+const isVercel = !!process.env.VERCEL;
 // In-memory + JSON file persistent database
-const DATA_DIR = path.resolve(process.cwd(), 'data');
+const DATA_DIR = isVercel ? '/tmp/data' : path.resolve(process.cwd(), 'data');
 const DB_FILE = path.resolve(DATA_DIR, 'database.json');
 
 interface DatabaseSchema {
@@ -1290,7 +1291,12 @@ async function startServer() {
   });
 }
 
-startServer().catch(err => {
-  console.error('Failed to start server:', err);
-  process.exit(1);
-});
+if (!isVercel) {
+  startServer().catch(err => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  });
+}
+
+export default app;
+export { app };

@@ -6,15 +6,15 @@
       (function() {
         try {
           if (typeof window !== 'undefined') {
-            // 1. Ensure Window.prototype has a setter for fetch
+            // 1. Ensure Window.prototype has a setter
             if (typeof Window !== 'undefined' && Window.prototype) {
               try {
-                var protoDesc = Object.getOwnPropertyDescriptor(Window.prototype, 'fetch');
-                if (protoDesc && !protoDesc.set) {
+                var pDesc = Object.getOwnPropertyDescriptor(Window.prototype, 'fetch');
+                if (pDesc && !pDesc.set) {
                   Object.defineProperty(Window.prototype, 'fetch', {
                     configurable: true,
                     enumerable: true,
-                    get: protoDesc.get || function() { return window._nativeFetch; },
+                    get: pDesc.get,
                     set: function(v) {
                       try {
                         Object.defineProperty(this, 'fetch', {
@@ -24,7 +24,7 @@
                           value: v
                         });
                       } catch (_) {
-                        this._customFetch = v;
+                        this._f = v;
                       }
                     }
                   });
@@ -32,51 +32,33 @@
               } catch (_) {}
             }
 
-            // 2. Ensure window instance has an own writable fetch property
-            var _nativeFetch = window.fetch ? window.fetch.bind(window) : null;
-            try {
-              Object.defineProperty(window, 'fetch', {
-                configurable: true,
-                writable: true,
-                enumerable: true,
-                value: _nativeFetch
-              });
-            } catch (e1) {
-              var _curr = _nativeFetch;
+            // 2. Ensure window instance itself has a writable property
+            var curFetch = window.fetch;
+            if (curFetch) {
               try {
                 Object.defineProperty(window, 'fetch', {
                   configurable: true,
+                  writable: true,
                   enumerable: true,
-                  get: function() { return _curr; },
-                  set: function(fn) { _curr = fn; }
+                  value: curFetch
                 });
-              } catch (_) {}
+              } catch (_) {
+                try {
+                  Object.defineProperty(window, 'fetch', {
+                    configurable: true,
+                    enumerable: true,
+                    get: function() { return curFetch; },
+                    set: function(fn) { curFetch = fn; }
+                  });
+                } catch (_) {}
+              }
             }
 
-            // 3. Catch and suppress third-party chrome-extension errors from polluting page
-            var shouldSuppress = function(src, msg) {
-              if (typeof src === 'string' && (src.indexOf('chrome-extension://') !== -1 || src.indexOf('moz-extension://') !== -1)) return true;
-              if (typeof msg === 'string' && msg.indexOf('Cannot set property fetch') !== -1) return true;
-              return false;
-            };
-
+            // 3. Prevent third-party browser extension crashes (e.g. Urban VPN requests.js) from failing the app
             window.addEventListener('error', function(e) {
-              if (shouldSuppress(e.filename, e.message)) {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                return true;
-              }
-            }, true);
-
-            var _oldOnError = window.onerror;
-            window.onerror = function(msg, url) {
-              if (shouldSuppress(url, msg)) return true;
-              if (_oldOnError) return _oldOnError.apply(this, arguments);
-            };
-
-            window.addEventListener('unhandledrejection', function(e) {
-              var stack = e.reason && (e.reason.stack || e.reason.message);
-              if (typeof stack === 'string' && (stack.indexOf('chrome-extension://') !== -1 || stack.indexOf('Cannot set property fetch') !== -1)) {
+              var isExt = e.filename && (e.filename.indexOf('chrome-extension://') !== -1 || e.filename.indexOf('moz-extension://') !== -1);
+              var isFetchErr = e.message && e.message.indexOf('Cannot set property fetch') !== -1;
+              if (isExt || isFetchErr) {
                 e.preventDefault();
                 e.stopImmediatePropagation();
               }

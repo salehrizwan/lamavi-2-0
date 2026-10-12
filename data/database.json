@@ -8,7 +8,7 @@
       "avatarUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80",
       "bio": "Architect & minimalist aesthetician • Geneva",
       "createdAt": 1791344137810,
-      "lastSeen": 1791776589527,
+      "lastSeen": 1791779202535,
       "isOnline": true,
       "recoveryCode": "LAMAVI-SPH1-9872",
       "privacy": {
@@ -75,6 +75,44 @@
         "statusPrivacy": "everyone"
       },
       "blockedUserIds": []
+    },
+    {
+      "id": "usr_1791776740240_q191",
+      "fullName": "saleh",
+      "username": "saleh123",
+      "email": "salehrizwan36@gmail.com",
+      "avatarUrl": null,
+      "bio": "Hey there! I am using LAMAVI.",
+      "createdAt": 1791776740240,
+      "lastSeen": 1791776740240,
+      "isOnline": true,
+      "recoveryCode": "LAMAVI-874E-A0EF",
+      "privacy": {
+        "profilePhoto": "everyone",
+        "lastSeen": "everyone",
+        "readReceipts": true,
+        "statusPrivacy": "everyone"
+      },
+      "blockedUserIds": []
+    },
+    {
+      "id": "usr_1791779209508_juds",
+      "fullName": "Zainab Khan",
+      "username": "zainab_k",
+      "email": null,
+      "avatarUrl": null,
+      "bio": "Hey there! I am using LAMAVI.",
+      "createdAt": 1791779209508,
+      "lastSeen": 1791779209508,
+      "isOnline": true,
+      "recoveryCode": "LAMAVI-7BE8-0313",
+      "privacy": {
+        "profilePhoto": "everyone",
+        "lastSeen": "everyone",
+        "readReceipts": true,
+        "statusPrivacy": "everyone"
+      },
+      "blockedUserIds": []
     }
   ],
   "passwords": {
@@ -93,9 +131,32 @@
     "usr_1791776548738_zdqp": {
       "salt": "aa59593c3bfab9377e528ebd781c54ca",
       "hash": "6efcecafffdebe3bea8d62a8b328fd2429572c00c4619baa5a369916296079d9"
+    },
+    "usr_1791776740240_q191": {
+      "salt": "5c15f1ae62c30bf0e29aecfb95255484",
+      "hash": "73589cb67f05ca94e1a6c29446caab4a48de763e0c679ccd45671473122552ed"
+    },
+    "usr_1791779209508_juds": {
+      "salt": "883c694fbefeff03c0ec5bede9a0766d",
+      "hash": "79098143674302544e5e0420f08b4775b92482e8113bf846e1d53303f4f2056d"
     }
   },
   "conversations": [
+    {
+      "id": "conv_1791776757695_axn4i",
+      "participantIds": [
+        "usr_1791776740240_q191",
+        "usr_sophia"
+      ],
+      "createdAt": 1791776757695,
+      "updatedAt": 1791776761797,
+      "clearedTimestamps": {},
+      "deletedForUsers": [],
+      "unreadCounts": {
+        "usr_1791776740240_q191": 0,
+        "usr_sophia": 1
+      }
+    },
     {
       "id": "conv_1791776573251_vri54",
       "participantIds": [
@@ -162,6 +223,21 @@
       "replyTo": null,
       "status": "sent",
       "createdAt": 1791776581029,
+      "deletedFor": []
+    },
+    {
+      "id": "msg_1791776761797_g7t72u",
+      "clientTempId": "temp_1791776712623_fn6s",
+      "conversationId": "conv_1791776757695_axn4i",
+      "senderId": "usr_1791776740240_q191",
+      "receiverId": "usr_sophia",
+      "content": "hi",
+      "type": "text",
+      "mediaUrl": null,
+      "caption": null,
+      "replyTo": null,
+      "status": "sent",
+      "createdAt": 1791776761797,
       "deletedFor": []
     }
   ],
