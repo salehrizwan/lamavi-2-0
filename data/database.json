@@ -113,6 +113,25 @@
         "statusPrivacy": "everyone"
       },
       "blockedUserIds": []
+    },
+    {
+      "id": "usr_1791779885412_0kag",
+      "fullName": "Tariq Ahmad",
+      "username": "tariq_a",
+      "email": null,
+      "avatarUrl": null,
+      "bio": "Hey there! I am using LAMAVI.",
+      "createdAt": 1791779885412,
+      "lastSeen": 1791779893178,
+      "isOnline": true,
+      "recoveryCode": "LAMAVI-643F-E11A",
+      "privacy": {
+        "profilePhoto": "everyone",
+        "lastSeen": "everyone",
+        "readReceipts": true,
+        "statusPrivacy": "everyone"
+      },
+      "blockedUserIds": []
     }
   ],
   "passwords": {
@@ -139,6 +158,10 @@
     "usr_1791779209508_juds": {
       "salt": "883c694fbefeff03c0ec5bede9a0766d",
       "hash": "79098143674302544e5e0420f08b4775b92482e8113bf846e1d53303f4f2056d"
+    },
+    "usr_1791779885412_0kag": {
+      "salt": "1c0bc12d14a39ab13caf76c4bee746fa",
+      "hash": "7372804277a51b6155d5c53164043f5f804e95643148e87ccb2a6ca6d51d493f"
     }
   },
   "conversations": [
