@@ -172,9 +172,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
       <div className="relative w-full max-w-md bg-white/95 rounded-3xl shadow-2xl border border-[#E5E5EA] p-6 sm:p-8 text-[#1C1C1E] transition-all">
         
         {/* Brand Header */}
-        <div className="flex flex-col items-center mb-6">
+        <div className="flex flex-col items-center mb-6 text-center">
           <BrandLogo size="md" />
-          <p className="text-xs text-[#8E8E93] mt-2 font-medium tracking-wide">
+          <h2 className="text-xl font-bold tracking-tight text-[#1C1C1E] mt-3">
+            Let's Connect Each Other
+          </h2>
+          <p className="text-xs text-[#8E8E93] mt-1 font-medium tracking-wide">
             PURE REFINEMENT IN MESSAGING
           </p>
         </div>

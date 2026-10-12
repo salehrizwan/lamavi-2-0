@@ -212,7 +212,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
         {/* BRAND FOOTER */}
         <div className="text-center pt-4">
-          <p className="text-xs font-semibold tracking-widest text-[#8E8E93]">LAMAVI MESSENGER</p>
+          <p className="text-xs font-semibold tracking-widest text-[#8E8E93]">LET'S CONNECT EACH OTHER</p>
           <p className="text-[11px] text-[#AEAEB2] mt-0.5">Version 2.4.0 (iOS 18 Theme)</p>
         </div>
       </div>

@@ -392,10 +392,18 @@ export default function App() {
               />
             ) : (
               <div className="h-full flex flex-col items-center justify-center p-8 text-center text-[#8E8E93]">
-                <BrandLogo size="lg" />
-                <h2 className="text-xl font-bold text-[#1C1C1E] mt-4 tracking-tight">LAMAVI Messenger</h2>
-                <p className="text-xs text-[#8E8E93] mt-1 max-w-sm">
-                  Select a chat or browse contacts to begin messaging in pure silver elegance.
+                <div className="p-4 rounded-3xl bg-white border border-[#E5E5EA] shadow-xs mb-2">
+                  <BrandLogo size="lg" />
+                </div>
+                <h2 className="text-2xl font-bold text-[#1C1C1E] mt-3 tracking-tight">
+                  Let's Connect Each Other
+                </h2>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] font-medium text-[#64748B] mt-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Pure White & Silver Elegance</span>
+                </div>
+                <p className="text-xs text-[#8E8E93] mt-2 max-w-sm">
+                  Select a conversation from the sidebar or explore contacts to begin messaging in style.
                 </p>
                 <div className="mt-6 flex items-center gap-3">
                   <button
