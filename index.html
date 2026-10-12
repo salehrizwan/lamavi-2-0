@@ -2,6 +2,89 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function() {
+        try {
+          if (typeof window !== 'undefined') {
+            // 1. Ensure Window.prototype has a setter for fetch
+            if (typeof Window !== 'undefined' && Window.prototype) {
+              try {
+                var protoDesc = Object.getOwnPropertyDescriptor(Window.prototype, 'fetch');
+                if (protoDesc && !protoDesc.set) {
+                  Object.defineProperty(Window.prototype, 'fetch', {
+                    configurable: true,
+                    enumerable: true,
+                    get: protoDesc.get || function() { return window._nativeFetch; },
+                    set: function(v) {
+                      try {
+                        Object.defineProperty(this, 'fetch', {
+                          configurable: true,
+                          writable: true,
+                          enumerable: true,
+                          value: v
+                        });
+                      } catch (_) {
+                        this._customFetch = v;
+                      }
+                    }
+                  });
+                }
+              } catch (_) {}
+            }
+
+            // 2. Ensure window instance has an own writable fetch property
+            var _nativeFetch = window.fetch ? window.fetch.bind(window) : null;
+            try {
+              Object.defineProperty(window, 'fetch', {
+                configurable: true,
+                writable: true,
+                enumerable: true,
+                value: _nativeFetch
+              });
+            } catch (e1) {
+              var _curr = _nativeFetch;
+              try {
+                Object.defineProperty(window, 'fetch', {
+                  configurable: true,
+                  enumerable: true,
+                  get: function() { return _curr; },
+                  set: function(fn) { _curr = fn; }
+                });
+              } catch (_) {}
+            }
+
+            // 3. Catch and suppress third-party chrome-extension errors from polluting page
+            var shouldSuppress = function(src, msg) {
+              if (typeof src === 'string' && (src.indexOf('chrome-extension://') !== -1 || src.indexOf('moz-extension://') !== -1)) return true;
+              if (typeof msg === 'string' && msg.indexOf('Cannot set property fetch') !== -1) return true;
+              return false;
+            };
+
+            window.addEventListener('error', function(e) {
+              if (shouldSuppress(e.filename, e.message)) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                return true;
+              }
+            }, true);
+
+            var _oldOnError = window.onerror;
+            window.onerror = function(msg, url) {
+              if (shouldSuppress(url, msg)) return true;
+              if (_oldOnError) return _oldOnError.apply(this, arguments);
+            };
+
+            window.addEventListener('unhandledrejection', function(e) {
+              var stack = e.reason && (e.reason.stack || e.reason.message);
+              if (typeof stack === 'string' && (stack.indexOf('chrome-extension://') !== -1 || stack.indexOf('Cannot set property fetch') !== -1)) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+              }
+            }, true);
+          }
+        } catch (_) {}
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>LAMAVI Messenger</title>
     <meta name="description" content="A premium iOS-style messaging application inspired by the elegance of silver and pearl white, featuring real-time messaging, status updates, and offline support." />
