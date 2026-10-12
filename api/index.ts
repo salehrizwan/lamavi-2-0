@@ -11,12 +11,13 @@ import type {
   PublicUserProfile,
   RealtimeEvent 
 } from '../src/types';
+import { getSupabase } from './supabaseClient';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const isProd = process.env.NODE_ENV === 'production';
-
 const isVercel = !!process.env.VERCEL;
-// In-memory + JSON file persistent database
+
+// File persistence location
 const DATA_DIR = isVercel ? '/tmp/data' : path.resolve(process.cwd(), 'data');
 const DB_FILE = path.resolve(DATA_DIR, 'database.json');
 
@@ -44,7 +45,9 @@ interface DatabaseSchema {
 }
 
 if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  } catch (_) {}
 }
 
 // Password hashing helper
@@ -81,7 +84,7 @@ function verifyToken(token: string): string | null {
   return null;
 }
 
-// Initial seed users with elegant profiles and default status
+// Initial seed demo users
 const now = Date.now();
 const initialDb: DatabaseSchema = {
   users: [
@@ -214,17 +217,27 @@ const initialDb: DatabaseSchema = {
   reports: []
 };
 
-// Database class
+// Database class with dual Supabase + Persistent JSON storage
 class Database {
   private data: DatabaseSchema;
+  private supabase = getSupabase();
 
   constructor() {
+    this.data = initialDb;
+    this.load();
+    if (this.supabase) {
+      this.initSupabaseSeed().catch(err => {
+        console.warn('[LAMAVI DB] Supabase initial check warning:', err.message);
+      });
+    }
+  }
+
+  private load() {
     if (fs.existsSync(DB_FILE)) {
       try {
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
         this.data = JSON.parse(raw);
       } catch (err) {
-        console.error('Error reading database file, resetting to initial seed:', err);
         this.data = initialDb;
         this.save();
       }
@@ -242,196 +255,576 @@ class Database {
     }
   }
 
-  public getUsers() {
+  private async initSupabaseSeed() {
+    if (!this.supabase) return;
+    try {
+      const { data } = await this.supabase.from('users').select('id').limit(1);
+      if (!data || data.length === 0) {
+        // Seed default users in Supabase
+        for (const u of initialDb.users) {
+          const pass = initialDb.passwords[u.id];
+          await this.supabase.from('users').insert({
+            id: u.id,
+            full_name: u.fullName,
+            username: u.username,
+            email: u.email,
+            avatar_url: u.avatarUrl,
+            bio: u.bio,
+            created_at: u.createdAt,
+            last_seen: u.lastSeen,
+            is_online: u.isOnline,
+            recovery_code: u.recoveryCode,
+            privacy: u.privacy,
+            blocked_user_ids: u.blockedUserIds,
+            password_salt: pass.salt,
+            password_hash: pass.hash
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  private mapDbUser(row: any): UserProfile {
+    return {
+      id: row.id,
+      fullName: row.full_name || row.fullName,
+      username: row.username,
+      email: row.email,
+      avatarUrl: row.avatar_url || row.avatarUrl,
+      bio: row.bio,
+      createdAt: Number(row.created_at || row.createdAt),
+      lastSeen: Number(row.last_seen || row.lastSeen),
+      isOnline: Boolean(row.is_online !== undefined ? row.is_online : row.isOnline),
+      recoveryCode: row.recovery_code || row.recoveryCode,
+      privacy: typeof row.privacy === 'string' ? JSON.parse(row.privacy) : (row.privacy || { profilePhoto: 'everyone', lastSeen: 'everyone', readReceipts: true, statusPrivacy: 'everyone' }),
+      blockedUserIds: Array.isArray(row.blocked_user_ids) ? row.blocked_user_ids : (row.blockedUserIds || [])
+    };
+  }
+
+  private mapDbConversation(row: any) {
+    return {
+      id: row.id,
+      participantIds: (Array.isArray(row.participant_ids) ? row.participant_ids : row.participantIds) as [string, string],
+      createdAt: Number(row.created_at || row.createdAt),
+      updatedAt: Number(row.updated_at || row.updatedAt),
+      clearedTimestamps: typeof row.cleared_timestamps === 'string' ? JSON.parse(row.cleared_timestamps) : (row.cleared_timestamps || row.clearedTimestamps || {}),
+      deletedForUsers: Array.isArray(row.deleted_for_users) ? row.deleted_for_users : (row.deletedForUsers || []),
+      unreadCounts: typeof row.unread_counts === 'string' ? JSON.parse(row.unread_counts) : (row.unread_counts || row.unreadCounts || {})
+    };
+  }
+
+  private mapDbMessage(row: any): Message {
+    return {
+      id: row.id,
+      clientTempId: row.client_temp_id || row.clientTempId,
+      conversationId: row.conversation_id || row.conversationId,
+      senderId: row.sender_id || row.senderId,
+      receiverId: row.receiver_id || row.receiverId,
+      content: row.content || '',
+      type: row.type || 'text',
+      mediaUrl: row.media_url || row.mediaUrl,
+      caption: row.caption,
+      replyTo: row.reply_to || row.replyTo,
+      status: row.status || 'sent',
+      createdAt: Number(row.created_at || row.createdAt),
+      deletedFor: Array.isArray(row.deleted_for) ? row.deleted_for : (row.deletedFor || []),
+      isDeletedForEveryone: Boolean(row.is_deleted_for_everyone !== undefined ? row.is_deleted_for_everyone : row.isDeletedForEveryone)
+    };
+  }
+
+  public async getUsers(): Promise<UserProfile[]> {
+    if (this.supabase) {
+      try {
+        const { data } = await this.supabase.from('users').select('*');
+        if (data && data.length > 0) {
+          return data.map(r => this.mapDbUser(r));
+        }
+      } catch (_) {}
+    }
     return this.data.users;
   }
 
-  public getUserById(id: string) {
+  public async getUserById(id: string): Promise<UserProfile | undefined> {
+    if (this.supabase) {
+      try {
+        const { data } = await this.supabase.from('users').select('*').eq('id', id).maybeSingle();
+        if (data) return this.mapDbUser(data);
+      } catch (_) {}
+    }
     return this.data.users.find(u => u.id === id);
   }
 
-  public getUserByUsername(username: string) {
-    return this.data.users.find(u => u.username.toLowerCase() === username.toLowerCase().trim());
+  public async getUserByUsername(username: string): Promise<UserProfile | undefined> {
+    const cleanU = username.toLowerCase().trim();
+    if (this.supabase) {
+      try {
+        const { data } = await this.supabase.from('users').select('*').ilike('username', cleanU).maybeSingle();
+        if (data) return this.mapDbUser(data);
+      } catch (_) {}
+    }
+    return this.data.users.find(u => u.username.toLowerCase() === cleanU);
   }
 
-  public getUserByEmail(email: string) {
-    return this.data.users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase().trim());
+  public async getUserByEmail(email: string): Promise<UserProfile | undefined> {
+    const cleanE = email.toLowerCase().trim();
+    if (this.supabase) {
+      try {
+        const { data } = await this.supabase.from('users').select('*').ilike('email', cleanE).maybeSingle();
+        if (data) return this.mapDbUser(data);
+      } catch (_) {}
+    }
+    return this.data.users.find(u => u.email && u.email.toLowerCase() === cleanE);
   }
 
-  public addUser(user: UserProfile, pass: { salt: string; hash: string }) {
+  public async addUser(user: UserProfile, pass: { salt: string; hash: string }): Promise<void> {
     this.data.users.push(user);
     this.data.passwords[user.id] = pass;
     this.save();
+
+    if (this.supabase) {
+      try {
+        await this.supabase.from('users').upsert({
+          id: user.id,
+          full_name: user.fullName,
+          username: user.username,
+          email: user.email,
+          avatar_url: user.avatarUrl,
+          bio: user.bio,
+          created_at: user.createdAt,
+          last_seen: user.lastSeen,
+          is_online: user.isOnline,
+          recovery_code: user.recoveryCode,
+          privacy: user.privacy,
+          blocked_user_ids: user.blockedUserIds,
+          password_salt: pass.salt,
+          password_hash: pass.hash
+        });
+      } catch (err: any) {
+        console.error('[LAMAVI DB] Supabase addUser error:', err.message);
+      }
+    }
   }
 
-  public getPassword(userId: string) {
+  public async getPassword(userId: string): Promise<{ salt: string; hash: string } | undefined> {
+    if (this.supabase) {
+      try {
+        const { data } = await this.supabase.from('users').select('password_salt, password_hash').eq('id', userId).maybeSingle();
+        if (data && data.password_salt && data.password_hash) {
+          return { salt: data.password_salt, hash: data.password_hash };
+        }
+      } catch (_) {}
+    }
     return this.data.passwords[userId];
   }
 
-  public setPassword(userId: string, pass: { salt: string; hash: string }) {
+  public async setPassword(userId: string, pass: { salt: string; hash: string }): Promise<void> {
     this.data.passwords[userId] = pass;
     this.save();
+    if (this.supabase) {
+      try {
+        await this.supabase.from('users').update({
+          password_salt: pass.salt,
+          password_hash: pass.hash
+        }).eq('id', userId);
+      } catch (_) {}
+    }
   }
 
-  public updateUser(user: UserProfile) {
+  public async updateUser(user: UserProfile): Promise<void> {
     const idx = this.data.users.findIndex(u => u.id === user.id);
     if (idx !== -1) {
       this.data.users[idx] = user;
       this.save();
     }
+    if (this.supabase) {
+      try {
+        await this.supabase.from('users').update({
+          full_name: user.fullName,
+          username: user.username,
+          email: user.email,
+          bio: user.bio,
+          avatar_url: user.avatarUrl,
+          is_online: user.isOnline,
+          last_seen: user.lastSeen,
+          privacy: user.privacy,
+          blocked_user_ids: user.blockedUserIds
+        }).eq('id', user.id);
+      } catch (_) {}
+    }
   }
 
-  public deleteUser(userId: string) {
+  public async deleteUser(userId: string): Promise<void> {
     this.data.users = this.data.users.filter(u => u.id !== userId);
     delete this.data.passwords[userId];
     this.data.conversations = this.data.conversations.filter(c => !c.participantIds.includes(userId));
     this.data.messages = this.data.messages.filter(m => m.senderId !== userId && m.receiverId !== userId);
     this.data.statuses = this.data.statuses.filter(s => s.userId !== userId);
     this.save();
+
+    if (this.supabase) {
+      try {
+        await this.supabase.from('users').delete().eq('id', userId);
+      } catch (_) {}
+    }
   }
 
-  public getConversationsForUser(userId: string) {
+  public async getConversationsForUser(userId: string) {
+    if (this.supabase) {
+      try {
+        const { data } = await this.supabase.from('conversations').select('*');
+        if (data && data.length > 0) {
+          const list = data.map(r => this.mapDbConversation(r));
+          return list.filter(c => c.participantIds.includes(userId) && !c.deletedForUsers.includes(userId));
+        }
+      } catch (_) {}
+    }
     return this.data.conversations.filter(c => c.participantIds.includes(userId) && !c.deletedForUsers.includes(userId));
   }
 
-  public getConversationById(id: string) {
+  public async getConversationById(id: string) {
+    if (this.supabase) {
+      try {
+        const { data } = await this.supabase.from('conversations').select('*').eq('id', id).maybeSingle();
+        if (data) return this.mapDbConversation(data);
+      } catch (_) {}
+    }
     return this.data.conversations.find(c => c.id === id);
   }
 
-  public findOrCreateConversation(userA: string, userB: string) {
-    const existing = this.data.conversations.find(c => 
-      (c.participantIds[0] === userA && c.participantIds[1] === userB) ||
-      (c.participantIds[0] === userB && c.participantIds[1] === userA)
+  public async findOrCreateConversation(user1Id: string, user2Id: string) {
+    if (this.supabase) {
+      try {
+        const { data } = await this.supabase.from('conversations').select('*');
+        if (data) {
+          const list = data.map(r => this.mapDbConversation(r));
+          const existing = list.find(c => 
+            (c.participantIds[0] === user1Id && c.participantIds[1] === user2Id) ||
+            (c.participantIds[0] === user2Id && c.participantIds[1] === user1Id)
+          );
+          if (existing) {
+            if (existing.deletedForUsers.includes(user1Id)) {
+              existing.deletedForUsers = existing.deletedForUsers.filter((id: string) => id !== user1Id);
+              await this.supabase.from('conversations').update({ deleted_for_users: existing.deletedForUsers }).eq('id', existing.id);
+            }
+            return existing;
+          }
+        }
+      } catch (_) {}
+    }
+
+    let existing = this.data.conversations.find(c => 
+      (c.participantIds[0] === user1Id && c.participantIds[1] === user2Id) ||
+      (c.participantIds[0] === user2Id && c.participantIds[1] === user1Id)
     );
+
     if (existing) {
-      // Un-delete if previously deleted for this user
-      existing.deletedForUsers = existing.deletedForUsers.filter(id => id !== userA && id !== userB);
-      this.save();
+      if (existing.deletedForUsers.includes(user1Id)) {
+        existing.deletedForUsers = existing.deletedForUsers.filter(id => id !== user1Id);
+        this.save();
+      }
       return existing;
     }
+
     const newConv = {
-      id: `conv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      participantIds: [userA, userB] as [string, string],
+      id: `conv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      participantIds: [user1Id, user2Id] as [string, string],
       createdAt: Date.now(),
       updatedAt: Date.now(),
       clearedTimestamps: {},
       deletedForUsers: [],
       unreadCounts: {
-        [userA]: 0,
-        [userB]: 0
+        [user1Id]: 0,
+        [user2Id]: 0
       }
     };
+
     this.data.conversations.unshift(newConv);
     this.save();
+
+    if (this.supabase) {
+      try {
+        await this.supabase.from('conversations').insert({
+          id: newConv.id,
+          participant_ids: newConv.participantIds,
+          created_at: newConv.createdAt,
+          updated_at: newConv.updatedAt,
+          cleared_timestamps: newConv.clearedTimestamps,
+          deleted_for_users: newConv.deletedForUsers,
+          unread_counts: newConv.unreadCounts
+        });
+      } catch (_) {}
+    }
+
     return newConv;
   }
 
-  public getMessagesForConversation(convId: string, userId: string) {
-    const conv = this.getConversationById(convId);
-    const clearedTime = (conv && conv.clearedTimestamps[userId]) || 0;
-    return this.data.messages.filter(m => 
-      m.conversationId === convId && 
-      !m.deletedFor.includes(userId) &&
-      m.createdAt > clearedTime
-    );
-  }
-
-  public addMessage(msg: Message) {
-    this.data.messages.push(msg);
-    const conv = this.getConversationById(msg.conversationId);
-    if (conv) {
-      conv.updatedAt = msg.createdAt;
-      conv.deletedForUsers = []; // Unhide conversation for both
-      conv.unreadCounts[msg.receiverId] = (conv.unreadCounts[msg.receiverId] || 0) + 1;
+  public async getMessagesForConversation(convId: string, currentUserId: string): Promise<Message[]> {
+    let list: Message[] = [];
+    if (this.supabase) {
+      try {
+        const { data } = await this.supabase.from('messages').select('*').eq('conversation_id', convId).order('created_at', { ascending: true });
+        if (data && data.length > 0) {
+          list = data.map(r => this.mapDbMessage(r));
+        }
+      } catch (_) {}
     }
-    this.save();
+
+    if (list.length === 0) {
+      list = this.data.messages.filter(m => m.conversationId === convId);
+    }
+
+    const conv = await this.getConversationById(convId);
+    const clearedTimestamp = conv?.clearedTimestamps?.[currentUserId] || 0;
+
+    return list.filter(m => !m.deletedFor.includes(currentUserId) && m.createdAt > clearedTimestamp);
   }
 
-  public getMessageById(id: string) {
+  public async getMessageById(id: string): Promise<Message | undefined> {
+    if (this.supabase) {
+      try {
+        const { data } = await this.supabase.from('messages').select('*').eq('id', id).maybeSingle();
+        if (data) return this.mapDbMessage(data);
+      } catch (_) {}
+    }
     return this.data.messages.find(m => m.id === id);
   }
 
-  public updateMessage(msg: Message) {
+  public async addMessage(msg: Message): Promise<void> {
+    this.data.messages.push(msg);
+    const conv = this.data.conversations.find(c => c.id === msg.conversationId);
+    if (conv) {
+      conv.updatedAt = msg.createdAt;
+      conv.unreadCounts[msg.receiverId] = (conv.unreadCounts[msg.receiverId] || 0) + 1;
+      conv.deletedForUsers = [];
+      this.save();
+    }
+
+    if (this.supabase) {
+      try {
+        await this.supabase.from('messages').insert({
+          id: msg.id,
+          client_temp_id: msg.clientTempId || null,
+          conversation_id: msg.conversationId,
+          sender_id: msg.senderId,
+          receiver_id: msg.receiverId,
+          content: msg.content,
+          type: msg.type,
+          media_url: msg.mediaUrl,
+          caption: msg.caption,
+          reply_to: msg.replyTo,
+          status: msg.status,
+          created_at: msg.createdAt,
+          deleted_for: msg.deletedFor,
+          is_deleted_for_everyone: msg.isDeletedForEveryone || false
+        });
+
+        if (conv) {
+          await this.supabase.from('conversations').update({
+            updated_at: conv.updatedAt,
+            unread_counts: conv.unreadCounts,
+            deleted_for_users: []
+          }).eq('id', conv.id);
+        }
+      } catch (err: any) {
+        console.error('[LAMAVI DB] Supabase addMessage error:', err.message);
+      }
+    }
+  }
+
+  public async markMessagesRead(convId: string, currentUserId: string): Promise<boolean> {
+    let updated = false;
+    for (const m of this.data.messages) {
+      if (m.conversationId === convId && m.receiverId === currentUserId && m.status !== 'read') {
+        m.status = 'read';
+        updated = true;
+      }
+    }
+    const conv = this.data.conversations.find(c => c.id === convId);
+    if (conv) {
+      conv.unreadCounts[currentUserId] = 0;
+      this.save();
+    }
+
+    if (this.supabase) {
+      try {
+        await this.supabase.from('messages')
+          .update({ status: 'read' })
+          .eq('conversation_id', convId)
+          .eq('receiver_id', currentUserId);
+        if (conv) {
+          await this.supabase.from('conversations').update({ unread_counts: conv.unreadCounts }).eq('id', convId);
+        }
+      } catch (_) {}
+    }
+    return updated;
+  }
+
+  public async updateMessage(msg: Message): Promise<void> {
     const idx = this.data.messages.findIndex(m => m.id === msg.id);
     if (idx !== -1) {
       this.data.messages[idx] = msg;
       this.save();
     }
+    if (this.supabase) {
+      try {
+        await this.supabase.from('messages').update({
+          content: msg.content,
+          media_url: msg.mediaUrl,
+          caption: msg.caption,
+          deleted_for: msg.deletedFor,
+          is_deleted_for_everyone: msg.isDeletedForEveryone || false,
+          status: msg.status
+        }).eq('id', msg.id);
+      } catch (_) {}
+    }
   }
 
-  public markMessagesRead(convId: string, readerId: string) {
-    let updated = false;
-    this.data.messages.forEach(m => {
-      if (m.conversationId === convId && m.receiverId === readerId && m.status !== 'read') {
-        m.status = 'read';
-        updated = true;
-      }
-    });
-    const conv = this.getConversationById(convId);
+  public async clearConversationHistory(convId: string, currentUserId: string): Promise<void> {
+    const conv = this.data.conversations.find(c => c.id === convId);
     if (conv) {
-      conv.unreadCounts[readerId] = 0;
-    }
-    if (updated) {
+      conv.clearedTimestamps[currentUserId] = Date.now();
       this.save();
     }
-    return updated;
-  }
-
-  public clearConversationHistory(convId: string, userId: string) {
-    const conv = this.getConversationById(convId);
-    if (conv) {
-      conv.clearedTimestamps[userId] = Date.now();
-      conv.unreadCounts[userId] = 0;
-      this.save();
+    if (this.supabase && conv) {
+      try {
+        await this.supabase.from('conversations').update({ cleared_timestamps: conv.clearedTimestamps }).eq('id', convId);
+      } catch (_) {}
     }
   }
 
-  public deleteConversation(convId: string, userId: string) {
-    const conv = this.getConversationById(convId);
+  public async deleteConversation(convId: string, currentUserId: string): Promise<void> {
+    const conv = this.data.conversations.find(c => c.id === convId);
     if (conv) {
-      if (!conv.deletedForUsers.includes(userId)) {
-        conv.deletedForUsers.push(userId);
+      if (!conv.deletedForUsers.includes(currentUserId)) {
+        conv.deletedForUsers.push(currentUserId);
       }
       this.save();
     }
+    if (this.supabase && conv) {
+      try {
+        await this.supabase.from('conversations').update({ deleted_for_users: conv.deletedForUsers }).eq('id', convId);
+      } catch (_) {}
+    }
   }
 
-  public getStatuses() {
+  public async getStatuses(): Promise<StatusUpdate[]> {
     const nowTime = Date.now();
-    // Filter statuses younger than 24 hours
+    if (this.supabase) {
+      try {
+        const { data } = await this.supabase.from('statuses').select('*').gt('expires_at', nowTime).order('created_at', { ascending: false });
+        if (data && data.length > 0) {
+          return data.map(r => ({
+            id: r.id,
+            userId: r.user_id,
+            type: r.type,
+            content: r.content,
+            mediaUrl: r.media_url,
+            backgroundColor: r.background_color,
+            fontStyle: r.font_style,
+            createdAt: Number(r.created_at),
+            expiresAt: Number(r.expires_at),
+            viewers: Array.isArray(r.viewers) ? r.viewers : []
+          }));
+        }
+      } catch (_) {}
+    }
     return this.data.statuses.filter(s => s.expiresAt > nowTime);
   }
 
-  public addStatus(status: StatusUpdate) {
-    this.data.statuses.unshift(status);
-    this.save();
-  }
-
-  public getStatusById(id: string) {
+  public async getStatusById(id: string): Promise<StatusUpdate | undefined> {
+    if (this.supabase) {
+      try {
+        const { data } = await this.supabase.from('statuses').select('*').eq('id', id).maybeSingle();
+        if (data) {
+          return {
+            id: data.id,
+            userId: data.user_id,
+            type: data.type,
+            content: data.content,
+            mediaUrl: data.media_url,
+            backgroundColor: data.background_color,
+            fontStyle: data.font_style,
+            createdAt: Number(data.created_at),
+            expiresAt: Number(data.expires_at),
+            viewers: Array.isArray(data.viewers) ? data.viewers : []
+          };
+        }
+      } catch (_) {}
+    }
     return this.data.statuses.find(s => s.id === id);
   }
 
-  public deleteStatus(id: string, userId: string) {
-    const idx = this.data.statuses.findIndex(s => s.id === id && s.userId === userId);
-    if (idx !== -1) {
-      this.data.statuses.splice(idx, 1);
-      this.save();
-      return true;
+  public async addStatus(status: StatusUpdate): Promise<void> {
+    this.data.statuses.unshift(status);
+    this.save();
+    if (this.supabase) {
+      try {
+        await this.supabase.from('statuses').insert({
+          id: status.id,
+          user_id: status.userId,
+          type: status.type,
+          content: status.content,
+          media_url: status.mediaUrl,
+          background_color: status.backgroundColor,
+          font_style: status.fontStyle,
+          created_at: status.createdAt,
+          expires_at: status.expiresAt,
+          viewers: status.viewers
+        });
+      } catch (_) {}
     }
-    return false;
   }
 
-  public addReport(reporterId: string, reportedUserId: string, reason: string) {
-    const report = {
-      id: `rep_${Date.now()}`,
+  public async updateStatus(status: StatusUpdate): Promise<void> {
+    const idx = this.data.statuses.findIndex(s => s.id === status.id);
+    if (idx !== -1) {
+      this.data.statuses[idx] = status;
+      this.save();
+    }
+    if (this.supabase) {
+      try {
+        await this.supabase.from('statuses').update({ viewers: status.viewers }).eq('id', status.id);
+      } catch (_) {}
+    }
+  }
+
+  public async deleteStatus(statusId: string, currentUserId: string): Promise<boolean> {
+    const status = this.data.statuses.find(s => s.id === statusId && s.userId === currentUserId);
+    if (!status && !this.supabase) return false;
+
+    this.data.statuses = this.data.statuses.filter(s => s.id !== statusId);
+    this.save();
+
+    if (this.supabase) {
+      try {
+        await this.supabase.from('statuses').delete().eq('id', statusId).eq('user_id', currentUserId);
+      } catch (_) {}
+    }
+    return true;
+  }
+
+  public async addReport(reporterId: string, reportedUserId: string, reason: string): Promise<void> {
+    const r = {
+      id: `rep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       reporterId,
       reportedUserId,
       reason,
       createdAt: Date.now()
     };
-    this.data.reports.push(report);
+    this.data.reports.push(r);
     this.save();
-    return report;
+
+    if (this.supabase) {
+      try {
+        await this.supabase.from('reports').insert({
+          id: r.id,
+          reporter_id: r.reporterId,
+          reported_user_id: r.reportedUserId,
+          reason: r.reason,
+          created_at: r.createdAt
+        });
+      } catch (_) {}
+    }
   }
 }
 
@@ -439,105 +832,67 @@ const db = new Database();
 
 // Realtime SSE Manager
 class RealtimeManager {
-  private clients: Map<string, Set<express.Response>> = new Map();
+  private clients: Map<string, express.Response[]> = new Map();
 
   public subscribe(userId: string, res: express.Response) {
     if (!this.clients.has(userId)) {
-      this.clients.set(userId, new Set());
+      this.clients.set(userId, []);
     }
-    this.clients.get(userId)!.add(res);
+    this.clients.get(userId)!.push(res);
 
-    // Mark user as online
-    const user = db.getUserById(userId);
-    if (user && !user.isOnline) {
-      user.isOnline = true;
-      user.lastSeen = Date.now();
-      db.updateUser(user);
-      this.broadcast({
-        type: 'presence:update',
-        payload: { userId, isOnline: true, lastSeen: user.lastSeen }
-      });
-    }
-
+    reqCloseHandler:
     res.on('close', () => {
-      const set = this.clients.get(userId);
-      if (set) {
-        set.delete(res);
-        if (set.size === 0) {
+      const active = this.clients.get(userId);
+      if (active) {
+        this.clients.set(userId, active.filter(c => c !== res));
+        if (this.clients.get(userId)!.length === 0) {
           this.clients.delete(userId);
-          // Mark offline
-          const u = db.getUserById(userId);
-          if (u) {
-            u.isOnline = false;
-            u.lastSeen = Date.now();
-            db.updateUser(u);
-            this.broadcast({
-              type: 'presence:update',
-              payload: { userId, isOnline: false, lastSeen: u.lastSeen }
-            });
-          }
         }
       }
     });
   }
 
-  public sendToUser(userId: string, event: RealtimeEvent) {
-    const set = this.clients.get(userId);
-    if (set && set.size > 0) {
-      const payload = `data: ${JSON.stringify(event)}\n\n`;
-      set.forEach(res => {
-        try {
-          res.write(payload);
-        } catch (e) {
-          console.error(`Failed to send event to user ${userId}:`, e);
-        }
-      });
-      return true;
-    }
-    return false;
-  }
-
   public isUserConnected(userId: string): boolean {
-    const set = this.clients.get(userId);
-    return !!(set && set.size > 0);
+    const conns = this.clients.get(userId);
+    return !!(conns && conns.length > 0);
   }
 
-  public broadcast(event: RealtimeEvent, excludeUserId?: string) {
+  public sendToUser(userId: string, event: RealtimeEvent) {
+    const conns = this.clients.get(userId);
+    if (!conns || conns.length === 0) return;
+
     const payload = `data: ${JSON.stringify(event)}\n\n`;
-    this.clients.forEach((set, uId) => {
-      if (excludeUserId && uId === excludeUserId) return;
-      set.forEach(res => {
+    for (const res of conns) {
+      try {
+        res.write(payload);
+      } catch (_) {}
+    }
+  }
+
+  public broadcast(event: RealtimeEvent) {
+    const payload = `data: ${JSON.stringify(event)}\n\n`;
+    for (const conns of this.clients.values()) {
+      for (const res of conns) {
         try {
           res.write(payload);
-        } catch {
-          // ignore
-        }
-      });
-    });
+        } catch (_) {}
+      }
+    }
   }
 }
 
 const realtime = new RealtimeManager();
 
-// Setup Express
-const app = express();
-app.use(express.json({ limit: '30mb' }));
-app.use(express.urlencoded({ extended: true, limit: '30mb' }));
-
-// Helper to filter public user profile according to privacy rules
+// Privacy profile sanitizer
 function sanitizePublicProfile(targetUser: UserProfile, viewerId?: string): PublicUserProfile {
   const isSelf = viewerId === targetUser.id;
   const isBlocked = viewerId && targetUser.blockedUserIds.includes(viewerId);
 
-  // Profile photo privacy
   let avatarUrl = targetUser.avatarUrl;
-  if (!isSelf && !isBlocked) {
-    if (targetUser.privacy.profilePhoto === 'nobody') {
-      avatarUrl = null;
-    }
+  if (!isSelf && !isBlocked && targetUser.privacy.profilePhoto === 'nobody') {
+    avatarUrl = null;
   }
 
-  // Last seen privacy
   let isOnline = targetUser.isOnline;
   let lastSeen = targetUser.lastSeen;
   if (!isSelf && (isBlocked || targetUser.privacy.lastSeen === 'nobody')) {
@@ -558,7 +913,7 @@ function sanitizePublicProfile(targetUser: UserProfile, viewerId?: string): Publ
 }
 
 // Authentication Middleware
-function authMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
+async function authMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Authentication required' });
@@ -568,7 +923,7 @@ function authMiddleware(req: express.Request, res: express.Response, next: expre
   if (!userId) {
     return res.status(401).json({ error: 'Invalid or expired session token' });
   }
-  const user = db.getUserById(userId);
+  const user = await db.getUserById(userId);
   if (!user) {
     return res.status(401).json({ error: 'User account not found' });
   }
@@ -576,19 +931,25 @@ function authMiddleware(req: express.Request, res: express.Response, next: expre
   next();
 }
 
-// ======================== API ROUTES ========================
+// Express app initialization
+const app = express();
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+
+// Health endpoint
+app.get('/api/health', async (_req, res) => {
+  return res.json({ status: 'ok', timestamp: Date.now() });
+});
 
 // 1. Account Creation (Register)
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   try {
     const { fullName, username, email, password } = req.body;
 
-    // Validate Full Name
     if (!fullName || typeof fullName !== 'string' || fullName.trim().length === 0) {
       return res.status(400).json({ error: 'Full real name is required.' });
     }
 
-    // Validate Username
     if (!username || typeof username !== 'string' || username.trim().length < 3) {
       return res.status(400).json({ error: 'Username must be at least 3 characters long.' });
     }
@@ -596,23 +957,24 @@ app.post('/api/auth/register', (req, res) => {
     if (!/^[a-zA-Z0-9_]+$/.test(cleanUsername)) {
       return res.status(400).json({ error: 'Username may only contain letters, numbers, and underscores.' });
     }
-    if (db.getUserByUsername(cleanUsername)) {
+
+    const existingUser = await db.getUserByUsername(cleanUsername);
+    if (existingUser) {
       return res.status(409).json({ error: 'This username is already taken. Please choose another.' });
     }
 
-    // Validate Email if provided
     let cleanEmail: string | null = null;
     if (email && typeof email === 'string' && email.trim().length > 0) {
       cleanEmail = email.trim().toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
         return res.status(400).json({ error: 'Please provide a valid email address.' });
       }
-      if (db.getUserByEmail(cleanEmail)) {
+      const existingEmail = await db.getUserByEmail(cleanEmail);
+      if (existingEmail) {
         return res.status(409).json({ error: 'An account with this email address already exists.' });
       }
     }
 
-    // Validate Password: exactly 8 characters, at least 1 alphabet, at least 1 digit
     if (!password || typeof password !== 'string') {
       return res.status(400).json({ error: 'Password is required.' });
     }
@@ -626,7 +988,6 @@ app.post('/api/auth/register', (req, res) => {
       return res.status(400).json({ error: 'Password must contain at least one numerical digit.' });
     }
 
-    // Generate unique recovery code
     const recoveryCode = `LAMAVI-${crypto.randomBytes(2).toString('hex').toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
     const userId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
@@ -651,7 +1012,7 @@ app.post('/api/auth/register', (req, res) => {
     };
 
     const passHash = hashPassword(password);
-    db.addUser(newUser, passHash);
+    await db.addUser(newUser, passHash);
 
     const token = generateToken(userId);
     return res.status(201).json({
@@ -666,7 +1027,7 @@ app.post('/api/auth/register', (req, res) => {
 });
 
 // 2. Login
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   try {
     const { identifier, password } = req.body;
     if (!identifier || !password) {
@@ -674,20 +1035,19 @@ app.post('/api/auth/login', (req, res) => {
     }
 
     const cleanId = identifier.trim().toLowerCase();
-    // Try find by username first, then by email
-    const user = db.getUserByUsername(cleanId) || db.getUserByEmail(cleanId);
+    const user = (await db.getUserByUsername(cleanId)) || (await db.getUserByEmail(cleanId));
     if (!user) {
       return res.status(401).json({ error: 'No account found with this username or email.' });
     }
 
-    const creds = db.getPassword(user.id);
+    const creds = await db.getPassword(user.id);
     if (!creds || !verifyPassword(password, creds.salt, creds.hash)) {
       return res.status(401).json({ error: 'Incorrect password. Please try again.' });
     }
 
     user.lastSeen = Date.now();
     user.isOnline = true;
-    db.updateUser(user);
+    await db.updateUser(user);
 
     const token = generateToken(user.id);
     return res.json({
@@ -708,11 +1068,11 @@ app.get('/api/auth/me', authMiddleware, (req, res) => {
 });
 
 // 4. Logout
-app.post('/api/auth/logout', authMiddleware, (req, res) => {
+app.post('/api/auth/logout', authMiddleware, async (req, res) => {
   const user = (req as any).user as UserProfile;
   user.isOnline = false;
   user.lastSeen = Date.now();
-  db.updateUser(user);
+  await db.updateUser(user);
   realtime.broadcast({
     type: 'presence:update',
     payload: { userId: user.id, isOnline: false, lastSeen: user.lastSeen }
@@ -721,13 +1081,13 @@ app.post('/api/auth/logout', authMiddleware, (req, res) => {
 });
 
 // 5. Account Recovery
-app.post('/api/auth/recover', (req, res) => {
+app.post('/api/auth/recover', async (req, res) => {
   const { identifier, recoveryCode, newPassword } = req.body;
   if (!identifier || !recoveryCode || !newPassword) {
     return res.status(400).json({ error: 'Identifier, recovery code, and new password are required.' });
   }
   const cleanId = identifier.trim().toLowerCase();
-  const user = db.getUserByUsername(cleanId) || db.getUserByEmail(cleanId);
+  const user = (await db.getUserByUsername(cleanId)) || (await db.getUserByEmail(cleanId));
   if (!user) {
     return res.status(404).json({ error: 'No matching user found.' });
   }
@@ -735,26 +1095,25 @@ app.post('/api/auth/recover', (req, res) => {
     return res.status(400).json({ error: 'Invalid recovery code for this account.' });
   }
 
-  // Validate new password rules
   if (newPassword.length !== 8 || !/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
     return res.status(400).json({ error: 'New password must be exactly 8 characters with at least one letter and one digit.' });
   }
 
   const passHash = hashPassword(newPassword);
-  db.setPassword(user.id, passHash);
+  await db.setPassword(user.id, passHash);
   const token = generateToken(user.id);
   return res.json({ message: 'Password reset successfully', token, user });
 });
 
 // 6. Delete Account
-app.delete('/api/auth/account', authMiddleware, (req, res) => {
+app.delete('/api/auth/account', authMiddleware, async (req, res) => {
   const user = (req as any).user as UserProfile;
-  db.deleteUser(user.id);
+  await db.deleteUser(user.id);
   return res.json({ success: true, message: 'Account permanently deleted' });
 });
 
 // 7. Update Profile
-app.put('/api/users/profile', authMiddleware, (req, res) => {
+app.put('/api/users/profile', authMiddleware, async (req, res) => {
   const user = (req as any).user as UserProfile;
   const { fullName, username, email, bio, avatarUrl, privacy } = req.body;
 
@@ -768,7 +1127,7 @@ app.put('/api/users/profile', authMiddleware, (req, res) => {
       if (cleanU.length < 3 || !/^[a-zA-Z0-9_]+$/.test(cleanU)) {
         return res.status(400).json({ error: 'Invalid username format' });
       }
-      const existing = db.getUserByUsername(cleanU);
+      const existing = await db.getUserByUsername(cleanU);
       if (existing && existing.id !== user.id) {
         return res.status(409).json({ error: 'This username is already taken.' });
       }
@@ -783,7 +1142,7 @@ app.put('/api/users/profile', authMiddleware, (req, res) => {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanE)) {
           return res.status(400).json({ error: 'Invalid email address' });
         }
-        const existingE = db.getUserByEmail(cleanE);
+        const existingE = await db.getUserByEmail(cleanE);
         if (existingE && existingE.id !== user.id) {
           return res.status(409).json({ error: 'This email is already in use.' });
         }
@@ -809,22 +1168,21 @@ app.put('/api/users/profile', authMiddleware, (req, res) => {
     };
   }
 
-  db.updateUser(user);
+  await db.updateUser(user);
   return res.json({ user, message: 'Profile updated successfully' });
 });
 
 // 8. Search Users
-app.get('/api/users/search', authMiddleware, (req, res) => {
+app.get('/api/users/search', authMiddleware, async (req, res) => {
   const currentUser = (req as any).user as UserProfile;
   const query = (req.query.q as string || '').trim().toLowerCase();
   if (!query) {
     return res.json({ users: [] });
   }
 
-  const allUsers = db.getUsers();
+  const allUsers = await db.getUsers();
   const matched = allUsers.filter(u => {
     if (u.id === currentUser.id) return false;
-    // Exact or starting with match on username or exact email match
     const usernameMatch = u.username.toLowerCase() === query || u.username.toLowerCase().includes(query);
     const emailMatch = u.email && u.email.toLowerCase() === query;
     return usernameMatch || emailMatch;
@@ -835,9 +1193,9 @@ app.get('/api/users/search', authMiddleware, (req, res) => {
 });
 
 // 9. Contacts / Directory
-app.get('/api/contacts', authMiddleware, (req, res) => {
+app.get('/api/contacts', authMiddleware, async (req, res) => {
   const currentUser = (req as any).user as UserProfile;
-  const allUsers = db.getUsers().filter(u => u.id !== currentUser.id);
+  const allUsers = (await db.getUsers()).filter(u => u.id !== currentUser.id);
   const contacts = allUsers.map(u => {
     const isBlocked = currentUser.blockedUserIds.includes(u.id);
     return {
@@ -849,7 +1207,7 @@ app.get('/api/contacts', authMiddleware, (req, res) => {
 });
 
 // 10. Block / Unblock User
-app.post('/api/contacts/block', authMiddleware, (req, res) => {
+app.post('/api/contacts/block', authMiddleware, async (req, res) => {
   const currentUser = (req as any).user as UserProfile;
   const { targetUserId } = req.body;
   if (!targetUserId || targetUserId === currentUser.id) {
@@ -857,42 +1215,41 @@ app.post('/api/contacts/block', authMiddleware, (req, res) => {
   }
   if (!currentUser.blockedUserIds.includes(targetUserId)) {
     currentUser.blockedUserIds.push(targetUserId);
-    db.updateUser(currentUser);
+    await db.updateUser(currentUser);
   }
   return res.json({ success: true, blockedUserIds: currentUser.blockedUserIds });
 });
 
-app.post('/api/contacts/unblock', authMiddleware, (req, res) => {
+app.post('/api/contacts/unblock', authMiddleware, async (req, res) => {
   const currentUser = (req as any).user as UserProfile;
   const { targetUserId } = req.body;
   currentUser.blockedUserIds = currentUser.blockedUserIds.filter(id => id !== targetUserId);
-  db.updateUser(currentUser);
+  await db.updateUser(currentUser);
   return res.json({ success: true, blockedUserIds: currentUser.blockedUserIds });
 });
 
 // 11. Report User
-app.post('/api/reports', authMiddleware, (req, res) => {
+app.post('/api/reports', authMiddleware, async (req, res) => {
   const currentUser = (req as any).user as UserProfile;
   const { targetUserId, reason } = req.body;
   if (!targetUserId || !reason) {
     return res.status(400).json({ error: 'Target user and reason are required.' });
   }
-  db.addReport(currentUser.id, targetUserId, reason);
+  await db.addReport(currentUser.id, targetUserId, reason);
   return res.json({ success: true, message: 'Report submitted. Thank you for keeping LAMAVI safe.' });
 });
 
 // 12. Get Conversations List
-app.get('/api/conversations', authMiddleware, (req, res) => {
+app.get('/api/conversations', authMiddleware, async (req, res) => {
   const currentUser = (req as any).user as UserProfile;
-  const rawConvs = db.getConversationsForUser(currentUser.id);
+  const rawConvs = await db.getConversationsForUser(currentUser.id);
 
-  const formattedConvs: Conversation[] = rawConvs.map(c => {
+  const formattedConvs: Conversation[] = await Promise.all(rawConvs.map(async c => {
     const otherUserId = c.participantIds.find(id => id !== currentUser.id) || currentUser.id;
-    const otherUserRaw = db.getUserById(otherUserId);
+    const otherUserRaw = await db.getUserById(otherUserId);
     const otherUser = otherUserRaw ? sanitizePublicProfile(otherUserRaw, currentUser.id) : undefined;
     
-    // Get last non-deleted message
-    const msgs = db.getMessagesForConversation(c.id, currentUser.id);
+    const msgs = await db.getMessagesForConversation(c.id, currentUser.id);
     const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
 
     return {
@@ -904,27 +1261,26 @@ app.get('/api/conversations', authMiddleware, (req, res) => {
       lastMessage: lastMsg,
       unreadCount: c.unreadCounts[currentUser.id] || 0
     };
-  });
+  }));
 
-  // Sort latest updated first
   formattedConvs.sort((a, b) => b.updatedAt - a.updatedAt);
   return res.json({ conversations: formattedConvs });
 });
 
 // 13. Create or Get Conversation with a user
-app.post('/api/conversations', authMiddleware, (req, res) => {
+app.post('/api/conversations', authMiddleware, async (req, res) => {
   const currentUser = (req as any).user as UserProfile;
   const { recipientId } = req.body;
   if (!recipientId || recipientId === currentUser.id) {
     return res.status(400).json({ error: 'Cannot start conversation with yourself.' });
   }
-  const recipient = db.getUserById(recipientId);
+  const recipient = await db.getUserById(recipientId);
   if (!recipient) {
     return res.status(404).json({ error: 'Recipient account not found.' });
   }
 
-  const conv = db.findOrCreateConversation(currentUser.id, recipientId);
-  const msgs = db.getMessagesForConversation(conv.id, currentUser.id);
+  const conv = await db.findOrCreateConversation(currentUser.id, recipientId);
+  const msgs = await db.getMessagesForConversation(conv.id, currentUser.id);
   const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
 
   const formatted: Conversation = {
@@ -941,20 +1297,18 @@ app.post('/api/conversations', authMiddleware, (req, res) => {
 });
 
 // 14. Get Messages for a conversation
-app.get('/api/conversations/:id/messages', authMiddleware, (req, res) => {
+app.get('/api/conversations/:id/messages', authMiddleware, async (req, res) => {
   const currentUser = (req as any).user as UserProfile;
   const convId = req.params.id;
-  const conv = db.getConversationById(convId);
+  const conv = await db.getConversationById(convId);
   if (!conv || !conv.participantIds.includes(currentUser.id)) {
     return res.status(403).json({ error: 'Access to this conversation is denied.' });
   }
 
-  const messages = db.getMessagesForConversation(convId, currentUser.id);
+  const messages = await db.getMessagesForConversation(convId, currentUser.id);
 
-  // If there are unread messages sent to current user, mark them read
-  const updated = db.markMessagesRead(convId, currentUser.id);
+  const updated = await db.markMessagesRead(convId, currentUser.id);
   if (updated && currentUser.privacy.readReceipts) {
-    // Notify the other user that messages were read
     const otherUserId = conv.participantIds.find(id => id !== currentUser.id);
     if (otherUserId) {
       realtime.sendToUser(otherUserId, {
@@ -968,21 +1322,20 @@ app.get('/api/conversations/:id/messages', authMiddleware, (req, res) => {
 });
 
 // 15. Send a Message
-app.post('/api/conversations/:id/messages', authMiddleware, (req, res) => {
+app.post('/api/conversations/:id/messages', authMiddleware, async (req, res) => {
   const currentUser = (req as any).user as UserProfile;
   const convId = req.params.id;
-  const conv = db.getConversationById(convId);
+  const conv = await db.getConversationById(convId);
   if (!conv || !conv.participantIds.includes(currentUser.id)) {
     return res.status(403).json({ error: 'Access to this conversation is denied.' });
   }
 
   const otherUserId = conv.participantIds.find(id => id !== currentUser.id)!;
-  const recipient = db.getUserById(otherUserId);
+  const recipient = await db.getUserById(otherUserId);
   if (!recipient) {
     return res.status(404).json({ error: 'Recipient account no longer exists.' });
   }
 
-  // Check if either party blocked the other
   if (recipient.blockedUserIds.includes(currentUser.id) || currentUser.blockedUserIds.includes(recipient.id)) {
     return res.status(403).json({ error: 'Cannot send message to this user.' });
   }
@@ -995,7 +1348,6 @@ app.post('/api/conversations/:id/messages', authMiddleware, (req, res) => {
     return res.status(400).json({ error: 'Image file or URL is required.' });
   }
 
-  // Determine delivery status: if other user is currently connected to SSE, mark as 'delivered'
   const isRecipientOnline = realtime.isUserConnected(otherUserId);
   const status = isRecipientOnline ? 'delivered' : 'sent';
 
@@ -1015,9 +1367,8 @@ app.post('/api/conversations/:id/messages', authMiddleware, (req, res) => {
     deletedFor: []
   };
 
-  db.addMessage(newMsg);
+  await db.addMessage(newMsg);
 
-  // Send realtime SSE to recipient
   realtime.sendToUser(otherUserId, {
     type: 'message:new',
     payload: {
@@ -1027,7 +1378,6 @@ app.post('/api/conversations/:id/messages', authMiddleware, (req, res) => {
     }
   });
 
-  // Also broadcast to other active sessions of the sender
   realtime.sendToUser(currentUser.id, {
     type: 'message:new',
     payload: {
@@ -1040,18 +1390,17 @@ app.post('/api/conversations/:id/messages', authMiddleware, (req, res) => {
 });
 
 // 16. Delete a Message
-app.post('/api/messages/:id/delete', authMiddleware, (req, res) => {
+app.post('/api/messages/:id/delete', authMiddleware, async (req, res) => {
   const currentUser = (req as any).user as UserProfile;
   const msgId = req.params.id;
   const { forEveryone } = req.body;
 
-  const msg = db.getMessageById(msgId);
+  const msg = await db.getMessageById(msgId);
   if (!msg) {
     return res.status(404).json({ error: 'Message not found.' });
   }
 
   if (forEveryone) {
-    // Only author can delete for everyone
     if (msg.senderId !== currentUser.id) {
       return res.status(403).json({ error: 'Only the sender can delete this message for everyone.' });
     }
@@ -1059,7 +1408,7 @@ app.post('/api/messages/:id/delete', authMiddleware, (req, res) => {
     msg.content = 'This message was deleted';
     msg.mediaUrl = null;
     msg.caption = null;
-    db.updateMessage(msg);
+    await db.updateMessage(msg);
 
     realtime.sendToUser(msg.receiverId, {
       type: 'message:deleted',
@@ -1070,10 +1419,9 @@ app.post('/api/messages/:id/delete', authMiddleware, (req, res) => {
       payload: { messageId: msg.id, conversationId: msg.conversationId, forEveryone: true }
     });
   } else {
-    // Delete for me
     if (!msg.deletedFor.includes(currentUser.id)) {
       msg.deletedFor.push(currentUser.id);
-      db.updateMessage(msg);
+      await db.updateMessage(msg);
     }
     realtime.sendToUser(currentUser.id, {
       type: 'message:deleted',
@@ -1085,10 +1433,10 @@ app.post('/api/messages/:id/delete', authMiddleware, (req, res) => {
 });
 
 // 17. Clear Conversation History
-app.post('/api/conversations/:id/clear', authMiddleware, (req, res) => {
+app.post('/api/conversations/:id/clear', authMiddleware, async (req, res) => {
   const currentUser = (req as any).user as UserProfile;
   const convId = req.params.id;
-  db.clearConversationHistory(convId, currentUser.id);
+  await db.clearConversationHistory(convId, currentUser.id);
   realtime.sendToUser(currentUser.id, {
     type: 'conversation:clear',
     payload: { conversationId: convId }
@@ -1097,40 +1445,37 @@ app.post('/api/conversations/:id/clear', authMiddleware, (req, res) => {
 });
 
 // 18. Delete Conversation
-app.delete('/api/conversations/:id', authMiddleware, (req, res) => {
+app.delete('/api/conversations/:id', authMiddleware, async (req, res) => {
   const currentUser = (req as any).user as UserProfile;
   const convId = req.params.id;
-  db.deleteConversation(convId, currentUser.id);
+  await db.deleteConversation(convId, currentUser.id);
   return res.json({ success: true, message: 'Conversation deleted' });
 });
 
-// 19. Statuses: Get all unexpired statuses
-app.get('/api/statuses', authMiddleware, (req, res) => {
+// 19. Statuses: Get active statuses
+app.get('/api/statuses', authMiddleware, async (req, res) => {
   const currentUser = (req as any).user as UserProfile;
-  const activeStatuses = db.getStatuses();
+  const activeStatuses = await db.getStatuses();
 
-  // Filter based on privacy and blocked list
-  const visible = activeStatuses.filter(s => {
-    const author = db.getUserById(s.userId);
-    if (!author) return false;
-    // Don't show statuses from users who blocked current user or current user blocked
+  const visible = [];
+  for (const s of activeStatuses) {
+    const author = await db.getUserById(s.userId);
+    if (!author) continue;
     if (author.blockedUserIds.includes(currentUser.id) || currentUser.blockedUserIds.includes(author.id)) {
-      return false;
+      continue;
     }
     if (s.userId !== currentUser.id && author.privacy.statusPrivacy === 'nobody') {
-      return false;
+      continue;
     }
-    return true;
-  });
+    visible.push({ s, author });
+  }
 
-  const formatted: StatusUpdate[] = visible.map(s => {
-    const author = db.getUserById(s.userId)!;
+  const formatted: StatusUpdate[] = visible.map(({ s, author }) => {
     const isAuthor = s.userId === currentUser.id;
     const hasViewed = s.viewers.some(v => v.userId === currentUser.id);
     return {
       ...s,
       user: sanitizePublicProfile(author, currentUser.id),
-      // Only author sees detailed list of viewers
       viewers: isAuthor ? s.viewers : [],
       hasViewed
     };
@@ -1140,7 +1485,7 @@ app.get('/api/statuses', authMiddleware, (req, res) => {
 });
 
 // 20. Post Status
-app.post('/api/statuses', authMiddleware, (req, res) => {
+app.post('/api/statuses', authMiddleware, async (req, res) => {
   const currentUser = (req as any).user as UserProfile;
   const { type = 'text', content = '', mediaUrl, backgroundColor = '#E5E5EA', fontStyle = 'font-sans' } = req.body;
 
@@ -1157,11 +1502,11 @@ app.post('/api/statuses', authMiddleware, (req, res) => {
     backgroundColor,
     fontStyle,
     createdAt: Date.now(),
-    expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours lifespan
+    expiresAt: Date.now() + 24 * 60 * 60 * 1000,
     viewers: []
   };
 
-  db.addStatus(newStatus);
+  await db.addStatus(newStatus);
   realtime.broadcast({
     type: 'status:new',
     payload: { status: { ...newStatus, user: sanitizePublicProfile(currentUser, currentUser.id) } }
@@ -1171,10 +1516,10 @@ app.post('/api/statuses', authMiddleware, (req, res) => {
 });
 
 // 21. Mark Status as Viewed
-app.post('/api/statuses/:id/view', authMiddleware, (req, res) => {
+app.post('/api/statuses/:id/view', authMiddleware, async (req, res) => {
   const currentUser = (req as any).user as UserProfile;
   const statusId = req.params.id;
-  const status = db.getStatusById(statusId);
+  const status = await db.getStatusById(statusId);
   if (!status) {
     return res.status(404).json({ error: 'Status not found or expired.' });
   }
@@ -1186,9 +1531,8 @@ app.post('/api/statuses/:id/view', authMiddleware, (req, res) => {
       userAvatar: currentUser.avatarUrl,
       viewedAt: Date.now()
     });
-    db.save();
+    await db.updateStatus(status);
 
-    // Inform author in realtime
     realtime.sendToUser(status.userId, {
       type: 'status:new',
       payload: { statusId, viewer: { userId: currentUser.id, userName: currentUser.fullName, viewedAt: Date.now() } }
@@ -1199,10 +1543,10 @@ app.post('/api/statuses/:id/view', authMiddleware, (req, res) => {
 });
 
 // 22. Delete Status
-app.delete('/api/statuses/:id', authMiddleware, (req, res) => {
+app.delete('/api/statuses/:id', authMiddleware, async (req, res) => {
   const currentUser = (req as any).user as UserProfile;
   const statusId = req.params.id;
-  const deleted = db.deleteStatus(statusId, currentUser.id);
+  const deleted = await db.deleteStatus(statusId, currentUser.id);
   if (deleted) {
     realtime.broadcast({
       type: 'status:delete',
@@ -1229,12 +1573,10 @@ app.get('/api/realtime', (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders?.();
 
-  // Send initial connected acknowledgement
   res.write(`data: ${JSON.stringify({ type: 'connected', payload: { userId } })}\n\n`);
 
   realtime.subscribe(userId, res);
 
-  // Keep-alive ping every 25 seconds
   const pingInterval = setInterval(() => {
     try {
       res.write(': ping\n\n');
@@ -1249,10 +1591,10 @@ app.get('/api/realtime', (req, res) => {
 });
 
 // 24. Typing Indicator
-app.post('/api/typing', authMiddleware, (req, res) => {
+app.post('/api/typing', authMiddleware, async (req, res) => {
   const currentUser = (req as any).user as UserProfile;
   const { conversationId, isTyping } = req.body;
-  const conv = db.getConversationById(conversationId);
+  const conv = await db.getConversationById(conversationId);
   if (conv) {
     const otherUserId = conv.participantIds.find(id => id !== currentUser.id);
     if (otherUserId) {
@@ -1264,8 +1606,6 @@ app.post('/api/typing', authMiddleware, (req, res) => {
   }
   return res.json({ success: true });
 });
-
-// Server boot and Vite middleware setup
 
 export default app;
 export { app };

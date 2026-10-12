@@ -6,21 +6,6 @@ import type {
   PublicUserProfile,
   RealtimeEvent 
 } from '../types';
-import {
-  clientHandleRegister,
-  clientHandleLogin,
-  clientHandleGetMe,
-  clientHandleRecover,
-  clientHandleUpdateProfile,
-  clientHandleSearch,
-  clientHandleGetContacts,
-  clientHandleGetConversations,
-  clientHandleCreateConversation,
-  clientHandleGetMessages,
-  clientHandleSendMessage,
-  clientHandleGetStatuses,
-  clientHandleAddStatus
-} from './clientDb';
 
 const TOKEN_KEY = 'lamavi_auth_token';
 
@@ -34,108 +19,6 @@ export function setStoredToken(token: string): void {
 
 export function clearStoredToken(): void {
   localStorage.removeItem(TOKEN_KEY);
-}
-
-// Fallback dispatcher when deployed on static environments (Vercel static, GitHub Pages) where /api/* returns 404
-function handleClientFallback(endpoint: string, options: RequestInit = {}): any {
-  const method = (options.method || 'GET').toUpperCase();
-  const url = new URL(endpoint, window.location.origin);
-  const pathname = url.pathname;
-  let body: any = {};
-  if (options.body && typeof options.body === 'string') {
-    try {
-      body = JSON.parse(options.body);
-    } catch (_) {}
-  }
-
-  // 1. Auth routes
-  if (pathname === '/api/auth/register' && method === 'POST') {
-    const res = clientHandleRegister(body);
-    setStoredToken(res.token);
-    return res;
-  }
-  if (pathname === '/api/auth/login' && method === 'POST') {
-    const res = clientHandleLogin(body);
-    setStoredToken(res.token);
-    return res;
-  }
-  if (pathname === '/api/auth/me' && method === 'GET') {
-    return clientHandleGetMe();
-  }
-  if (pathname === '/api/auth/logout' && method === 'POST') {
-    clearStoredToken();
-    return { success: true };
-  }
-  if (pathname === '/api/auth/recover' && method === 'POST') {
-    const res = clientHandleRecover(body);
-    setStoredToken(res.token);
-    return res;
-  }
-  if (pathname === '/api/auth/account' && method === 'DELETE') {
-    clearStoredToken();
-    return { success: true };
-  }
-
-  // 2. User routes
-  if (pathname === '/api/users/profile' && method === 'PUT') {
-    return clientHandleUpdateProfile(body);
-  }
-  if (pathname === '/api/users/search' && method === 'GET') {
-    const q = url.searchParams.get('q') || '';
-    return clientHandleSearch(q);
-  }
-  if (pathname === '/api/contacts' && method === 'GET') {
-    return clientHandleGetContacts();
-  }
-  if (pathname === '/api/contacts/block' && method === 'POST') {
-    return { success: true, blockedUserIds: [body.targetUserId] };
-  }
-  if (pathname === '/api/contacts/unblock' && method === 'POST') {
-    return { success: true, blockedUserIds: [] };
-  }
-  if (pathname === '/api/reports' && method === 'POST') {
-    return { success: true, message: 'Report submitted successfully' };
-  }
-
-  // 3. Conversation routes
-  if (pathname === '/api/conversations' && method === 'GET') {
-    return clientHandleGetConversations();
-  }
-  if (pathname === '/api/conversations' && method === 'POST') {
-    return clientHandleCreateConversation(body.recipientId);
-  }
-
-  const msgMatch = pathname.match(/^\/api\/conversations\/([^/]+)\/messages$/);
-  if (msgMatch) {
-    const convId = msgMatch[1];
-    if (method === 'GET') return clientHandleGetMessages(convId);
-    if (method === 'POST') return clientHandleSendMessage(convId, body);
-  }
-
-  const clearMatch = pathname.match(/^\/api\/conversations\/([^/]+)\/clear$/);
-  if (clearMatch && method === 'POST') {
-    return { success: true };
-  }
-  const deleteConvMatch = pathname.match(/^\/api\/conversations\/([^/]+)$/);
-  if (deleteConvMatch && method === 'DELETE') {
-    return { success: true };
-  }
-
-  // 4. Status routes
-  if (pathname === '/api/statuses' && method === 'GET') {
-    return clientHandleGetStatuses();
-  }
-  if (pathname === '/api/statuses' && method === 'POST') {
-    return clientHandleAddStatus(body);
-  }
-  if (pathname.match(/^\/api\/statuses\/[^/]+\/view$/) && method === 'POST') {
-    return { success: true };
-  }
-  if (pathname.match(/^\/api\/statuses\/[^/]+$/) && method === 'DELETE') {
-    return { success: true };
-  }
-
-  return { success: true };
 }
 
 export async function apiRequest<T = any>(
@@ -153,42 +36,27 @@ export async function apiRequest<T = any>(
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  try {
-    const response = await fetch(endpoint, {
-      ...options,
-      headers
-    });
+  const response = await fetch(endpoint, {
+    ...options,
+    headers
+  });
 
-    // If server returned 404 or 405 (Method Not Allowed when a static host routes POST to index.html), fallback seamlessly!
-    if (response.status === 404 || response.status === 405) {
-      console.warn(`[LAMAVI] /api returned ${response.status} on ${endpoint}. Seamlessly switching to local offline storage adapter.`);
-      return handleClientFallback(endpoint, options) as T;
-    }
-
-    const contentType = response.headers.get('content-type');
-    let data: any = null;
-    if (contentType && contentType.includes('application/json')) {
-      data = await response.json();
-    } else {
-      data = await response.text();
-    }
-
-    if (!response.ok) {
-      const errorMsg = data && typeof data === 'object' && data.error 
-        ? data.error 
-        : `Request failed with status ${response.status}`;
-      throw new Error(errorMsg);
-    }
-
-    return data as T;
-  } catch (err: any) {
-    // If network connection failed or server returned 404/405, fallback to client offline database
-    if (err.message && (err.message.includes('404') || err.message.includes('405') || err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
-      console.warn(`[LAMAVI] Network unavailable (${err.message}). Handling request via local storage database: ${endpoint}`);
-      return handleClientFallback(endpoint, options) as T;
-    }
-    throw err;
+  const contentType = response.headers.get('content-type');
+  let data: any = null;
+  if (contentType && contentType.includes('application/json')) {
+    data = await response.json();
+  } else {
+    data = await response.text();
   }
+
+  if (!response.ok) {
+    const errorMsg = data && typeof data === 'object' && data.error 
+      ? data.error 
+      : `Request failed with status ${response.status}`;
+    throw new Error(errorMsg);
+  }
+
+  return data as T;
 }
 
 // Compress image via Canvas to avoid sending massive payloads

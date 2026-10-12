@@ -132,6 +132,82 @@
         "statusPrivacy": "everyone"
       },
       "blockedUserIds": []
+    },
+    {
+      "id": "usr_1791780815327_b0yo",
+      "fullName": "Alice Walker",
+      "username": "alice_5197",
+      "email": null,
+      "avatarUrl": null,
+      "bio": "Hey there! I am using LAMAVI.",
+      "createdAt": 1791780815327,
+      "lastSeen": 1791780815355,
+      "isOnline": true,
+      "recoveryCode": "LAMAVI-FD4A-1351",
+      "privacy": {
+        "profilePhoto": "everyone",
+        "lastSeen": "everyone",
+        "readReceipts": true,
+        "statusPrivacy": "everyone"
+      },
+      "blockedUserIds": []
+    },
+    {
+      "id": "usr_1791780815346_1579",
+      "fullName": "Bob Miller",
+      "username": "bob_5341",
+      "email": null,
+      "avatarUrl": null,
+      "bio": "Hey there! I am using LAMAVI.",
+      "createdAt": 1791780815346,
+      "lastSeen": 1791780815346,
+      "isOnline": true,
+      "recoveryCode": "LAMAVI-E12C-6C99",
+      "privacy": {
+        "profilePhoto": "everyone",
+        "lastSeen": "everyone",
+        "readReceipts": true,
+        "statusPrivacy": "everyone"
+      },
+      "blockedUserIds": []
+    },
+    {
+      "id": "usr_1791800604411_ydk9",
+      "fullName": "Elena Rostova",
+      "username": "user_4251",
+      "email": null,
+      "avatarUrl": null,
+      "bio": "Hey there! I am using LAMAVI.",
+      "createdAt": 1791800604411,
+      "lastSeen": 1791800604446,
+      "isOnline": true,
+      "recoveryCode": "LAMAVI-68AC-67E1",
+      "privacy": {
+        "profilePhoto": "everyone",
+        "lastSeen": "everyone",
+        "readReceipts": true,
+        "statusPrivacy": "everyone"
+      },
+      "blockedUserIds": []
+    },
+    {
+      "id": "usr_1791800604434_a26h",
+      "fullName": "Marcus Vance",
+      "username": "user_4252",
+      "email": null,
+      "avatarUrl": null,
+      "bio": "Hey there! I am using LAMAVI.",
+      "createdAt": 1791800604434,
+      "lastSeen": 1791800604434,
+      "isOnline": true,
+      "recoveryCode": "LAMAVI-069B-A7FF",
+      "privacy": {
+        "profilePhoto": "everyone",
+        "lastSeen": "everyone",
+        "readReceipts": true,
+        "statusPrivacy": "everyone"
+      },
+      "blockedUserIds": []
     }
   ],
   "passwords": {
@@ -162,9 +238,55 @@
     "usr_1791779885412_0kag": {
       "salt": "1c0bc12d14a39ab13caf76c4bee746fa",
       "hash": "7372804277a51b6155d5c53164043f5f804e95643148e87ccb2a6ca6d51d493f"
+    },
+    "usr_1791780815327_b0yo": {
+      "salt": "fafe4c3290194e900cdd8ef16a160fb7",
+      "hash": "9a45fd14702ec16270eb13cca1b0a8484d4b7ff3811fe5d3287ceff706f17269"
+    },
+    "usr_1791780815346_1579": {
+      "salt": "10b35afac9509b553ab2b19ad3621506",
+      "hash": "5bfb55e9fbaceae6d60ceb11366e758baa4c43c03282792f0edaf5adea700f1b"
+    },
+    "usr_1791800604411_ydk9": {
+      "salt": "0ad11ec780192bae8e0f8c827b3196d6",
+      "hash": "ee0467242f2be43d463ec702740158ff3d9056234eb7036a9115bb8459e2d8ae"
+    },
+    "usr_1791800604434_a26h": {
+      "salt": "7121d939ab3c350ff10c9a05233779bf",
+      "hash": "29434335dd3e30cc266293da1ec1a8cb2b38174b27c3dfde601603ecf3e68a6a"
     }
   },
   "conversations": [
+    {
+      "id": "conv_1791800604453_pm5a",
+      "participantIds": [
+        "usr_1791800604411_ydk9",
+        "usr_1791800604434_a26h"
+      ],
+      "createdAt": 1791800604453,
+      "updatedAt": 1791800604460,
+      "clearedTimestamps": {},
+      "deletedForUsers": [],
+      "unreadCounts": {
+        "usr_1791800604411_ydk9": 0,
+        "usr_1791800604434_a26h": 0
+      }
+    },
+    {
+      "id": "conv_1791780815364_c9cv",
+      "participantIds": [
+        "usr_1791780815327_b0yo",
+        "usr_1791780815346_1579"
+      ],
+      "createdAt": 1791780815364,
+      "updatedAt": 1791780815392,
+      "clearedTimestamps": {},
+      "deletedForUsers": [],
+      "unreadCounts": {
+        "usr_1791780815327_b0yo": 0,
+        "usr_1791780815346_1579": 0
+      }
+    },
     {
       "id": "conv_1791776757695_axn4i",
       "participantIds": [
@@ -261,6 +383,48 @@
       "replyTo": null,
       "status": "sent",
       "createdAt": 1791776761797,
+      "deletedFor": []
+    },
+    {
+      "id": "msg_1791780815370_v81cjd",
+      "conversationId": "conv_1791780815364_c9cv",
+      "senderId": "usr_1791780815327_b0yo",
+      "receiverId": "usr_1791780815346_1579",
+      "content": "Hello Bob! Testing LAMAVI cross-device messaging.",
+      "type": "text",
+      "mediaUrl": null,
+      "caption": null,
+      "replyTo": null,
+      "status": "read",
+      "createdAt": 1791780815370,
+      "deletedFor": []
+    },
+    {
+      "id": "msg_1791780815392_vb2fxo",
+      "conversationId": "conv_1791780815364_c9cv",
+      "senderId": "usr_1791780815346_1579",
+      "receiverId": "usr_1791780815327_b0yo",
+      "content": "Hi Alice, received perfectly on Device 2!",
+      "type": "text",
+      "mediaUrl": null,
+      "caption": null,
+      "replyTo": null,
+      "status": "read",
+      "createdAt": 1791780815392,
+      "deletedFor": []
+    },
+    {
+      "id": "msg_1791800604460_gmhoc5",
+      "conversationId": "conv_1791800604453_pm5a",
+      "senderId": "usr_1791800604411_ydk9",
+      "receiverId": "usr_1791800604434_a26h",
+      "content": "Real-time test message across devices!",
+      "type": "text",
+      "mediaUrl": null,
+      "caption": null,
+      "replyTo": null,
+      "status": "read",
+      "createdAt": 1791800604460,
       "deletedFor": []
     }
   ],

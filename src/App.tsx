@@ -136,6 +136,15 @@ export default function App() {
     };
   }, [currentUser, isOffline, activeConversation?.id]);
 
+  // Periodic background conversations sync across devices
+  useEffect(() => {
+    if (!currentUser || isOffline) return;
+    const interval = setInterval(() => {
+      fetchConversations();
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [currentUser, isOffline]);
+
   // 4. Offline / Online Event Listeners & Auto-Sync
   useEffect(() => {
     const updateQueueCount = () => {

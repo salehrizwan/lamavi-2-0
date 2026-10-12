@@ -84,22 +84,25 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
   useEffect(() => {
     fetchMessages();
-  }, [conversation.id]);
+    // Fast real-time sync every 2.5s to guarantee instant message delivery across separate devices and serverless instances
+    const interval = setInterval(() => {
+      fetchMessages();
+    }, 2500);
 
-  // Scroll to bottom on messages update
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  // SSE Realtime listener for incoming messages & delivery receipts
-  useEffect(() => {
     const handleStorageOrWindow = () => {
-      // Re-fetch if another tab sent a message
       fetchMessages();
     };
     window.addEventListener('storage', handleStorageOrWindow);
-    return () => window.removeEventListener('storage', handleStorageOrWindow);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', handleStorageOrWindow);
+    };
   }, [conversation.id]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length]);
 
   // Send Text Message
   const handleSendMessage = async (e?: React.FormEvent) => {
