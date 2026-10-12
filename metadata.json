@@ -1,0 +1,6 @@
+{
+  "name": "LAMAVI Messenger",
+  "description": "A premium iOS-style messaging application inspired by the elegance of silver and pearl white, featuring real-time messaging, status updates, and offline support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

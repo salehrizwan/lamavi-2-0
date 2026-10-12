@@ -1,0 +1,194 @@
+{
+  "users": [
+    {
+      "id": "usr_sophia",
+      "fullName": "Sophia Vance",
+      "username": "sophia_vance",
+      "email": "sophia@lamavi.luxury",
+      "avatarUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80",
+      "bio": "Architect & minimalist aesthetician • Geneva",
+      "createdAt": 1791344137810,
+      "lastSeen": 1791776589527,
+      "isOnline": true,
+      "recoveryCode": "LAMAVI-SPH1-9872",
+      "privacy": {
+        "profilePhoto": "everyone",
+        "lastSeen": "everyone",
+        "readReceipts": true,
+        "statusPrivacy": "everyone"
+      },
+      "blockedUserIds": []
+    },
+    {
+      "id": "usr_julian",
+      "fullName": "Julian Sterling",
+      "username": "julian_silver",
+      "email": "julian@lamavi.luxury",
+      "avatarUrl": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80",
+      "bio": "Curating timeless craftsmanship in silver and porcelain.",
+      "createdAt": 1790912137810,
+      "lastSeen": 1791774637810,
+      "isOnline": false,
+      "recoveryCode": "LAMAVI-JLN2-4410",
+      "privacy": {
+        "profilePhoto": "everyone",
+        "lastSeen": "everyone",
+        "readReceipts": true,
+        "statusPrivacy": "everyone"
+      },
+      "blockedUserIds": []
+    },
+    {
+      "id": "usr_clara",
+      "fullName": "Clara Mercier",
+      "username": "clara_m",
+      "email": "clara@lamavi.luxury",
+      "avatarUrl": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80",
+      "bio": "Creative director. Paris & Kyoto.",
+      "createdAt": 1791084937810,
+      "lastSeen": 1791768937810,
+      "isOnline": false,
+      "recoveryCode": "LAMAVI-CLR3-8821",
+      "privacy": {
+        "profilePhoto": "everyone",
+        "lastSeen": "everyone",
+        "readReceipts": true,
+        "statusPrivacy": "everyone"
+      },
+      "blockedUserIds": []
+    },
+    {
+      "id": "usr_1791776548738_zdqp",
+      "fullName": "Alexander Sterling",
+      "username": "alexander_s",
+      "email": null,
+      "avatarUrl": null,
+      "bio": "Hey there! I am using LAMAVI.",
+      "createdAt": 1791776548738,
+      "lastSeen": 1791776548738,
+      "isOnline": true,
+      "recoveryCode": "LAMAVI-9B6E-BE8D",
+      "privacy": {
+        "profilePhoto": "everyone",
+        "lastSeen": "everyone",
+        "readReceipts": true,
+        "statusPrivacy": "everyone"
+      },
+      "blockedUserIds": []
+    }
+  ],
+  "passwords": {
+    "usr_sophia": {
+      "salt": "20ca6e918279a037a90d84d886cf2968",
+      "hash": "564c70f587325eab7eaa5f63d833a7369d937345d9952081e5d26f867790e3b4"
+    },
+    "usr_julian": {
+      "salt": "d79b9fe67a0b284c97b27c57c7dcb959",
+      "hash": "65b9509541d37d785db2aa1e599320bd4a80b262304b4cd53c7c747938bb5edf"
+    },
+    "usr_clara": {
+      "salt": "5223723317bbc27d82b78d7d47b6831b",
+      "hash": "e36b9a8a68d9fe80df3879a25913bbb4e48b9389d089b57fd85236308884d856"
+    },
+    "usr_1791776548738_zdqp": {
+      "salt": "aa59593c3bfab9377e528ebd781c54ca",
+      "hash": "6efcecafffdebe3bea8d62a8b328fd2429572c00c4619baa5a369916296079d9"
+    }
+  },
+  "conversations": [
+    {
+      "id": "conv_1791776573251_vri54",
+      "participantIds": [
+        "usr_1791776548738_zdqp",
+        "usr_sophia"
+      ],
+      "createdAt": 1791776573251,
+      "updatedAt": 1791776581029,
+      "clearedTimestamps": {},
+      "deletedForUsers": [],
+      "unreadCounts": {
+        "usr_1791776548738_zdqp": 0,
+        "usr_sophia": 1
+      }
+    },
+    {
+      "id": "conv_sophia_julian",
+      "participantIds": [
+        "usr_sophia",
+        "usr_julian"
+      ],
+      "createdAt": 1791689737810,
+      "updatedAt": 1791774937810,
+      "clearedTimestamps": {},
+      "deletedForUsers": [],
+      "unreadCounts": {
+        "usr_julian": 0,
+        "usr_sophia": 0
+      }
+    }
+  ],
+  "messages": [
+    {
+      "id": "msg_seed_1",
+      "conversationId": "conv_sophia_julian",
+      "senderId": "usr_julian",
+      "receiverId": "usr_sophia",
+      "content": "Good morning Sophia. Did you receive the platinum architectural blueprints for the gallery?",
+      "type": "text",
+      "status": "read",
+      "createdAt": 1791774037810,
+      "deletedFor": []
+    },
+    {
+      "id": "msg_seed_2",
+      "conversationId": "conv_sophia_julian",
+      "senderId": "usr_sophia",
+      "receiverId": "usr_julian",
+      "content": "Yes! The silver finishes and marble accents look magnificent. The lighting harmony is flawless.",
+      "type": "text",
+      "status": "read",
+      "createdAt": 1791774937810,
+      "deletedFor": []
+    },
+    {
+      "id": "msg_1791776581029_233s76",
+      "conversationId": "conv_1791776573251_vri54",
+      "senderId": "usr_1791776548738_zdqp",
+      "receiverId": "usr_sophia",
+      "content": "Hello Sophia, welcome to LAMAVI!",
+      "type": "text",
+      "mediaUrl": null,
+      "caption": null,
+      "replyTo": null,
+      "status": "sent",
+      "createdAt": 1791776581029,
+      "deletedFor": []
+    }
+  ],
+  "statuses": [
+    {
+      "id": "st_sophia_1",
+      "userId": "usr_sophia",
+      "type": "text",
+      "content": "Simplicity is the ultimate sophistication. ✨",
+      "backgroundColor": "linear-gradient(135deg, #E2E8F0 0%, #CBD5E1 100%)",
+      "fontStyle": "font-serif italic",
+      "createdAt": 1791773437810,
+      "expiresAt": 1791859837810,
+      "viewers": []
+    },
+    {
+      "id": "st_julian_1",
+      "userId": "usr_julian",
+      "type": "image",
+      "content": "New sterling silverware exhibition in Zurich.",
+      "mediaUrl": "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=800&q=80",
+      "backgroundColor": "#1C1C1E",
+      "fontStyle": "font-sans",
+      "createdAt": 1791770737810,
+      "expiresAt": 1791857137810,
+      "viewers": []
+    }
+  ],
+  "reports": []
+}

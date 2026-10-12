@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --pearl-white: #FBFBFD;
+    --pure-white: #FFFFFF;
+    --silver-light: #F2F2F7;
+    --silver-border: #E5E5EA;
+    --silver-metal: #D1D1D6;
+    --silver-deep: #AEAEB2;
+    --silver-text: #8E8E93;
+    --charcoal-text: #1C1C1E;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #F8F9FA;
+    color: #1C1C1E;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior-y: none;
+  }
+}
+
+/* Custom scrollbar for clean iOS feel */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(174, 174, 178, 0.4);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(142, 142, 147, 0.6);
+}
+
+/* Subtle silver sheen and metallic gradients */
+.silver-shimmer {
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    #f4f5f8 25%,
+    #e9ecef 50%,
+    #f8f9fa 75%,
+    #ffffff 100%
+  );
+}
+
+.silver-border {
+  border-color: #E5E5EA;
+}
+
+.silver-badge {
+  background: linear-gradient(135deg, #E5E5EA 0%, #D1D1D6 100%);
+  color: #1C1C1E;
+}
+
+.silver-gradient-button {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F0F1F5 100%);
+  border: 1px solid #D5D7DF;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+.silver-gradient-button:hover {
+  background: linear-gradient(180deg, #F8F9FA 0%, #E8EAEF 100%);
+}
+
+.silver-primary-button {
+  background: linear-gradient(180deg, #2C2D30 0%, #151618 100%);
+  color: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.ios-glass {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.ios-glass-card {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(229, 229, 234, 0.8);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04);
+}
+
+/* Safe area padding utilities for iOS viewport */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 16px);
+}
